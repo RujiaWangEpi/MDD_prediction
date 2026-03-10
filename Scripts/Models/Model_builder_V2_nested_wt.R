@@ -1,5 +1,7 @@
 #!/usr/bin/Rscript
 # This script was written by Oliver Pain whilst at King's College London University.
+# Rujia Wang has updated the original scripts by incorporating class weighting to account for case-control imbalance in GLAD+ and UKB.
+
 start.time <- Sys.time()
 suppressMessages(library("optparse"))
 
@@ -589,3 +591,4 @@ sink(file = paste(opt$out,'.log',sep=''), append = T)
 cat('Analysis finished at',as.character(end.time),'\n')
 cat('Analysis duration was',as.character(round(time.taken,2)),attr(time.taken, 'units'),'\n')
 sink()
+

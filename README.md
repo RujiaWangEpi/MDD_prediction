@@ -1,11 +1,29 @@
 # MDD_prediction
 "Combined family history and polygenic score prediction of major depressive disorder"
+Preprint: https://www.medrxiv.org/content/10.1101/2025.09.22.25336356v1
 
-Question: Does combining family history, polygenic risk scores (PRS), childhood trauma, and sociodemographic factors improve prediction of major depressive disorder (MDD) and its severity compared to a single predictor?
+Major depressive disorder (MDD) is one of the most common mental health conditions worldwide. However, predicting who will develop depression — or who is at higher risk — remains difficult. This is partly because depression arises from a complex combination of genetic, family, environmental, and social factors.
 
-Findings: 
-These factors explained 32.9% of the variance in MDD in the Genetic Links to Anxiety and Depression Study and 23.1% in the UK Biobank. 
-The top five predictors are family history of depression, childhood trauma, female sex, family history of anxiety, and PRS. 
-These factors also predict MDD severity (episodes, and age of onset).
+In this project, we examine whether combining several types of risk information can improve prediction of depression. These include:
 
-Meaning: Incorporating family history and childhood trauma into clinical assessments is vital for their strong predictive value and ease of measurement.
+1) Family history of psychiatric disorders
+
+2) Genetic risk measured using polygenic risk scores (PRS)
+
+3) Exposure to childhood trauma
+
+4) Demographic factors such as sex and genetic principal components (PCs)
+
+We analyzed data from two large cohorts: the GLAD+ study, which focuses on individuals with anxiety and depression, and the UK Biobank, a large population-based study.
+
+Using machine learning and statistical models, we evaluated how well these factors predict:
+
+1) Whether someone has depression
+
+2) The severity of depressive episodes
+
+3) The future onset of depression
+
+Our results show that combining multiple risk factors improves prediction compared with using genetic information alone. In particular, family history and childhood trauma were consistently stronger predictors of depression than genetic risk scores. While genetic information contributes useful insights, traditional clinical risk factors remain highly informative.
+
+These findings highlight that integrating familial, environmental, and genetic information provides a more complete picture of depression risk. The work contributes to ongoing efforts to develop more accurate and clinically meaningful approaches for identifying individuals at elevated risk of depression.

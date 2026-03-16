@@ -1,5 +1,6 @@
 # MDD_prediction
 "**Combined family history and polygenic score prediction of major depressive disorder**"
+
 Wang R, Davies H, Lee SY, Zvrskovec J, Hübel C, et al. Preprint: https://www.medrxiv.org/content/10.1101/2025.09.22.25336356v1
 
 Major depressive disorder (MDD) is one of the most common mental health conditions worldwide. However, predicting who will develop depression — or who is at higher risk — remains difficult. This is partly because depression arises from a complex combination of genetic, family, environmental, and social factors.

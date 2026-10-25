@@ -592,3 +592,31 @@ cat('Analysis finished at',as.character(end.time),'\n')
 cat('Analysis duration was',as.character(round(time.taken,2)),attr(time.taken, 'units'),'\n')
 sink()
 
+  ################
+  # Refit on the FULL development dataset for external validation
+  ################
+  full_y <- Outcome_Predictors$Outcome_var
+  full_x <- Outcome_Predictors[-1:-2]
+  if(group == '.'){
+    full_x_group <- full_x
+  } else {
+    full_x_group <- full_x[grepl(paste0('Group_',group,'\\.','|','Group_',group,'$'), names(full_x))]
+  }
+
+  case_weight_full   <- sum(full_y == "CONTROL") / sum(full_y == "CASE")
+  class_weights_full <- ifelse(full_y == "CASE", case_weight_full, 1)
+
+  ctrl <- trainControl(method="cv", seeds=seeds, number=opt$n_inner_fold,
+                       classProbs=T, savePredictions='final')
+
+  if(dim(full_x_group)[2] > 1){
+    model_full <- train(y=full_y, x=full_x_group, trControl=ctrl,
+                        method="glmnet", family=opt$family, weights=class_weights_full)
+  } else {
+    model_full <- train(y=full_y, x=cbind(0,full_x_group), trControl=ctrl,
+                        method="glm", family=opt$family, weights=class_weights_full)
+  }
+
+  saveRDS(model_full$finalModel, paste0(opt$out, '.', group_name, '.final_model_full.rds'))
+  saveRDS(model_full$bestTune,   paste0(opt$out, '.', group_name, '.bestTune_full.rds'))
+  saveRDS(names(full_x_group),   paste0(opt$out, '.', group_name, '.predictor_order.rds'))

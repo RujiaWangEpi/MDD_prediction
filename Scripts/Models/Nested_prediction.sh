@@ -11,26 +11,28 @@
 
 module load r/4.3.0-gcc-13.2.0-withx-rmath-standalone-python-3.11.6
 
-cd project folder
+cd /path/to/project   # edit
 
 # MDD diagnosis
 
-Rscript scripts/Model_builder_V2_nested_wt.R \
-    --pheno predictors/MDD_rm_episodes.txt  \
-    --out results/mdd_wt_20250120/nested_ukb_mdd_allpred \
+# --assoc F: the per-predictor univariate associations are a legacy pipeline output and are not used for any reported result.
+# --compare_predictors F: single-predictor models are not reported (predictor contributions are taken from the full model; Figure S2).
+Rscript Scripts/Models/Model_builder_V2_nested_wt_refit.R \
+    --pheno predictors/UKB_MDD.txt  \
+    --out results/ukb_mdd/nested_ukb_mdd_allpred \
     --n_core 1 \
-    --compare_predictors T \
-    --assoc T \
+    --compare_predictors F \
+    --assoc F \
     --outcome_pop_prev 0.15 \
-    --predictors /predictors/predictors_map_gald.txt
+    --predictors predictors/predictors_map_ukb.txt
 
 # MDD episodes 
 
-Rscript scripts/Model_builder_V2_nested.R \
-    --pheno predictors/MDD_episodes.txt  \
-    --out results/mdd_episodes_20250120/ukb_mdd_episode \
+Rscript Scripts/Models/Model_builder_V2_nested_wt_refit.R \
+    --pheno predictors/UKB_MDD_episodes.txt  \
+    --out results/ukb_episodes/nested_ukb_mdd_episodes \
     --n_core 1 \
-    --compare_predictors T \
-    --assoc T \
-    --predictors predictors/predictors_map_gald.txt
+    --compare_predictors F \
+    --assoc F \
+    --predictors predictors/predictors_map_ukb.txt
 

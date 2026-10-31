@@ -21,6 +21,25 @@
 #   4. The RNG state is saved before and restored after each refit, so the outer-fold
 #      models and pooled internal results are identical to those of the original script.
 
+#
+# NOTES FOR READERS (added in revision, October 2026; see response to Reviewer 3):
+# * Model comparison. The paired correlation test (psych::paired.r) in the "Compare predictive utility" block
+#   below is a legacy output of this pipeline (written as <out>.pred_comp.txt) and was NOT used for any result
+#   in the manuscript. AUCs of predictor groups are compared with paired DeLong tests on the pooled out-of-fold
+#   ROC objects (Compare_AUC_DeLong.R; Table S9).
+# * Univariate associations (--assoc T; <out>.assoc.txt) and single-predictor models (--compare_predictors T)
+#   are legacy outputs and were not used for any reported result. Predictor contributions in the manuscript
+#   are standardised coefficients from the full elastic net model, averaged across outer folds, and the number
+#   of folds in which each predictor was retained (<out>.<group>.coefficients.txt; Figures S2-S4).
+# * Folds. Outer folds (5) are assigned at random with set.seed(1) on the analytic sample and are identical for
+#   every predictor group; inner folds (10, caret) are stratified by case status. Class weights (controls/cases)
+#   are computed within each outer training set and enter the training loss only.
+# * Tuning. caret default grid (alpha 0.10/0.55/1.00 x 3 lambda values); criterion = Accuracy (binary) or RMSE
+#   (continuous). Selected values per fold are written to <out>.tuning.txt (refit version).
+# * Missing data. Predictors with >= --pred_miss (default 10%) missing are dropped, then complete cases are kept.
+#   None of the 28 harmonised predictors met the missingness threshold in either cohort.
+# * Genetic principal components are entered as ordinary (penalised) predictors (see Limitations).
+
 start.time <- Sys.time()
 suppressMessages(library("optparse"))
 
@@ -643,6 +662,7 @@ if(opt$model_comp == T){
 
 		###################
 		# Compare predictive utiliy of the different models
+		# LEGACY OUTPUT - paired correlation test (psych::paired.r); not used in the manuscript. See Compare_AUC_DeLong.R.
 		###################
 
 		comp_res_all<-NULL

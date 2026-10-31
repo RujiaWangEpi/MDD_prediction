@@ -1,5 +1,21 @@
 #### XGBoost for MDD prediction in GLAD+ and UKB ####
-#### Rujia Wang 2026-01-30 ####
+#### Rujia Wang 2026-01-30; revised 2026-10 ####
+#
+# NOTE ON HYPERPARAMETER TUNING (see manuscript Methods and Limitations, and response to Reviewer 3, R3.4.4/R3.4.7).
+# In the analyses reported in the manuscript the grid search in tune_xgb_cv() did not return a valid result
+# for any model: no tuning AUC was recorded and the number of boosting rounds defaulted to 200. The models were
+# therefore fitted with the prespecified fallback hyperparameters (eta 0.05, max_depth 4, min_child_weight 1,
+# 200 rounds, subsample 0.8, colsample_bytree 0.8). The most likely cause is the change in the xgb.cv() return
+# structure in recent xgboost R releases (best_iteration moved to cv$early_stop$best_iteration), which made the
+# original check `is.null(cv$best_iteration)` skip every grid point. The code below now (i) reads best_iteration
+# from either location, (ii) records whether tuning succeeded in the summary output, and (iii) no longer swallows
+# xgb.cv errors silently. Re-running with tuning enabled will therefore give tuned models and may not reproduce the
+# reported XGBoost results exactly; set --no_tune to reproduce the reported (untuned) models.
+#
+# Class weighting: scale_pos_weight is computed from the training data passed to tune_xgb_cv()/xgb_external()
+# (the full development cohort), as described in the manuscript. XGBoost is reported for external validation.
+#
+# SHAP values are not reported in the manuscript; the SHAP summary is disabled by default (--shap to enable).
 
 suppressPackageStartupMessages({
   library(data.table)
@@ -19,6 +35,8 @@ get_arg <- function(flag, default = NULL) {
 }
 
 out_dir <- get_arg("--outdir", default = "results")
+NO_TUNE <- "--no_tune" %in% args   # reproduce the reported models (prespecified hyperparameters, no grid search)
+DO_SHAP <- "--shap" %in% args      # SHAP summaries are not reported in the manuscript
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 ID_COL <- "IID"
@@ -170,7 +188,7 @@ tune_xgb_cv <- function(X, y, folds, grid,
   best_params <- NULL
   best_nrounds <- NULL
   
-  for (i in seq_len(nrow(grid))) {
+  for (i in if (NO_TUNE) integer(0) else seq_len(nrow(grid))) {
     p <- list(
       booster = "gbtree",
       objective = "binary:logistic",
@@ -188,24 +206,22 @@ tune_xgb_cv <- function(X, y, folds, grid,
     )
     
     set.seed(seed + i)
-    cv <- tryCatch(
-      xgb.cv(
-        params = p,
-        data = d,
-        folds = folds,
-        nrounds = nrounds_max,
-        early_stopping_rounds = early_stopping_rounds,
-        maximize = TRUE,
-        verbose = 0
-      ),
-      error = function(e) NULL
+    cv <- xgb.cv(
+      params = p,
+      data = d,
+      folds = folds,
+      nrounds = nrounds_max,
+      early_stopping_rounds = early_stopping_rounds,
+      maximize = TRUE,
+      verbose = 0
     )
     
-    if (is.null(cv) || is.null(cv$evaluation_log) || nrow(cv$evaluation_log) == 0) next
-    if (is.null(cv$best_iteration) || length(cv$best_iteration) == 0) next
+    if (is.null(cv$evaluation_log) || nrow(cv$evaluation_log) == 0) stop("xgb.cv returned no evaluation log")
+    # xgboost < 2.1: cv$best_iteration; xgboost >= 2.1: cv$early_stop$best_iteration
+    nbest <- cv$best_iteration %||% cv$early_stop$best_iteration
+    if (is.null(nbest) || length(nbest) == 0) stop("xgb.cv did not return best_iteration; check the xgboost version")
     
     score <- max(cv$evaluation_log$test_auc_mean)
-    nbest <- cv$best_iteration
     
     if (score > best_score) {
       best_score <- score
@@ -214,8 +230,9 @@ tune_xgb_cv <- function(X, y, folds, grid,
     }
   }
   
-  if (is.null(best_nrounds) || length(best_nrounds) == 0) {
-    message("WARNING: tuning failed; using default params and nrounds=200.")
+  tuned_ok <- !(is.null(best_nrounds) || length(best_nrounds) == 0)
+  if (!tuned_ok) {
+    message("NOTE: using prespecified hyperparameters and nrounds=200 (no grid search).")
     best_params <- list(
       booster="gbtree", objective="binary:logistic", eval_metric="auc",
       nthread=nthread, eta=0.05, max_depth=4, min_child_weight=1,
@@ -226,13 +243,13 @@ tune_xgb_cv <- function(X, y, folds, grid,
     best_score <- NA_real_
   }
   
-  list(best_params = best_params, best_nrounds = best_nrounds, tuning_cv_mean_auc = best_score)
+  list(best_params = best_params, best_nrounds = best_nrounds, tuning_cv_mean_auc = best_score, tuned = tuned_ok)
 }
 
 # ============================================================
 # 5-fold CV (OOF pred) + calibration + SHAP + ROC/AUC saving
 # ============================================================
-xgb_cv_5fold <- function(df, dataset_label, k = 5, seed = 2026, do_shap = TRUE) {
+xgb_cv_5fold <- function(df, dataset_label, k = 5, seed = 2026, do_shap = DO_SHAP) {
   df <- as.data.table(df)
   df[[Y_COL]] <- prep_binary_y(df[[Y_COL]])
   df <- df[is.finite(df[[Y_COL]])]
@@ -293,6 +310,7 @@ xgb_cv_5fold <- function(df, dataset_label, k = 5, seed = 2026, do_shap = TRUE) 
     best_params = tuned$best_params,
     best_nrounds = tuned$best_nrounds,
     tuning_cv_mean_auc = tuned$tuning_cv_mean_auc,
+    tuned = tuned$tuned,
     fold_auc = fold_auc,
     auc_mean = mean(fold_auc),
     auc_sd = sd(fold_auc),
@@ -307,7 +325,7 @@ xgb_cv_5fold <- function(df, dataset_label, k = 5, seed = 2026, do_shap = TRUE) 
 # ============================================================
 # External validation + calibration + SHAP + ROC/AUC saving
 # ============================================================
-xgb_external <- function(train_df, test_df, train_label, test_label, k = 5, seed = 2026, do_shap = TRUE) {
+xgb_external <- function(train_df, test_df, train_label, test_label, k = 5, seed = 2026, do_shap = DO_SHAP) {
   train_df <- as.data.table(train_df)
   test_df  <- as.data.table(test_df)
   
@@ -319,7 +337,8 @@ xgb_external <- function(train_df, test_df, train_label, test_label, k = 5, seed
   
   feature_cols <- setdiff(names(train_df), c(Y_COL, ID_COL))
   miss <- setdiff(feature_cols, names(test_df))
-  if (length(miss) > 0) for (cc in miss) test_df[[cc]] <- NA_real_
+  if (length(miss) > 0) stop("Predictors missing in the target cohort: ", paste(miss, collapse = ", "),
+                             "\nThe two cohorts must have identical, complete-case predictor sets (no native missing-value handling is used).")
   
   mm_tr <- make_sparse_numeric(train_df, Y_COL, ID_COL, feature_cols)
   mm_te <- make_sparse_numeric(test_df,  Y_COL, ID_COL, feature_cols)
@@ -363,6 +382,7 @@ xgb_external <- function(train_df, test_df, train_label, test_label, k = 5, seed
     best_params = tuned$best_params,
     best_nrounds = tuned$best_nrounds,
     tuning_cv_mean_auc_train = tuned$tuning_cv_mean_auc,
+    tuned = tuned$tuned,
     external_auc = auc_ext,
     y_true = yte,
     pred = p_hat,
@@ -381,7 +401,7 @@ save_cv_outputs <- function(obj, prefix) {
   
   fwrite(data.table(dataset=obj$dataset, model=obj$model, cv_folds=obj$cv_folds,
                     auc_mean=obj$auc_mean, auc_sd=obj$auc_sd,
-                    tuning_cv_mean_auc=obj$tuning_cv_mean_auc,
+                    tuning_cv_mean_auc=obj$tuning_cv_mean_auc, tuned=obj$tuned,
                     best_nrounds=obj$best_nrounds, nthread=obj$nthread),
          file.path(out_dir, paste0(prefix, "_cv_summary.csv")))
   
@@ -416,7 +436,7 @@ save_external_outputs <- function(obj, prefix) {
   fwrite(data.table(train_dataset=obj$train_dataset, test_dataset=obj$test_dataset,
                     model=obj$model, cv_folds_train=obj$cv_folds_train,
                     external_auc=obj$external_auc,
-                    tuning_cv_mean_auc_train=obj$tuning_cv_mean_auc_train,
+                    tuning_cv_mean_auc_train=obj$tuning_cv_mean_auc_train, tuned=obj$tuned,
                     best_nrounds=obj$best_nrounds, nthread=obj$nthread),
          file.path(out_dir, paste0(prefix, "_external_summary.csv")))
   
@@ -444,36 +464,32 @@ save_external_outputs <- function(obj, prefix) {
 # -------------------------
 # Load inputs (your current approach)
 # -------------------------
-load("GLAD_replicated.Rdata")          
-load("UKB_replicated.Rdata")           
-load("UKB_replicated_resample.Rdata")  
+# Complete-case analytic datasets (identical participants and predictors to the elastic net analyses; Figure S1).
+# Objects: GLAD_test, UKB_test, UKB_test_resample (data.frames with IID, Outcome_var and the 28 harmonised predictors).
+load("GLAD_replicated.Rdata")
+load("UKB_replicated.Rdata")
+load("UKB_replicated_resample.Rdata")
 
-mdd_onset<-readRDS("mdd_onset_cox.rds")
-mdd_onset$Outcome_var<-mdd_onset$obs
-mdd_onset1<-mdd_onset[,c(2,56,6:33)]
 
 # -------------------------
 # Run: within-dataset CV
 # -------------------------
-glad_cv <- xgb_cv_5fold(GLAD_test, "GLAD+", k = K_FOLDS, seed = SEED, do_shap = TRUE)
+glad_cv <- xgb_cv_5fold(GLAD_test, "GLAD+", k = K_FOLDS, seed = SEED, do_shap = DO_SHAP)
 save_cv_outputs(glad_cv, "glad_xgb")
 
-ukb_cv <- xgb_cv_5fold(UKB_test, "UKB", k = K_FOLDS, seed = SEED, do_shap = TRUE)
+ukb_cv <- xgb_cv_5fold(UKB_test, "UKB", k = K_FOLDS, seed = SEED, do_shap = DO_SHAP)
 save_cv_outputs(ukb_cv, "ukb_xgb")
-
-ukb_inc_cv <- xgb_cv_5fold(mdd_onset1, "UKB_inc", k = K_FOLDS, seed = SEED, do_shap = TRUE)
-save_cv_outputs(ukb_inc_cv, "ukb_inc_xgb")
 
 # -------------------------
 # Run: external validation
 # -------------------------
-glad_to_ukb <- xgb_external(GLAD_test, UKB_test, "GLAD+", "UKB", k = K_FOLDS, seed = SEED, do_shap = TRUE)
+glad_to_ukb <- xgb_external(GLAD_test, UKB_test, "GLAD+", "UKB", k = K_FOLDS, seed = SEED, do_shap = DO_SHAP)
 save_external_outputs(glad_to_ukb, "glad_to_ukb_xgb")
 
-glad_to_ukb_resample <- xgb_external(GLAD_test, UKB_test_resample, "GLAD+", "UKB_resample", k = K_FOLDS, seed = SEED, do_shap = TRUE)
+glad_to_ukb_resample <- xgb_external(GLAD_test, UKB_test_resample, "GLAD+", "UKB_resample", k = K_FOLDS, seed = SEED, do_shap = DO_SHAP)
 save_external_outputs(glad_to_ukb_resample, "glad_to_ukb_resample_xgb")
 
-ukb_to_glad <- xgb_external(UKB_test, GLAD_test, "UKB", "GLAD+", k = K_FOLDS, seed = SEED, do_shap = TRUE)
+ukb_to_glad <- xgb_external(UKB_test, GLAD_test, "UKB", "GLAD+", k = K_FOLDS, seed = SEED, do_shap = DO_SHAP)
 save_external_outputs(ukb_to_glad, "ukb_to_glad_xgb")
 
 message("DONE. Outputs in: ", normalizePath(out_dir))

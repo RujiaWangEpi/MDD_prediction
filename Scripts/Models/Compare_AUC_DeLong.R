@@ -1,14 +1,28 @@
-# Compare AUCs between predictor groups using paired DeLong tests (Table S7)
-# Input: pooled out-of-fold ROC objects (*.Indep_auc_<group>.rds) from Model_builder_V2_nested_wt.R
+# Compare AUCs between predictor groups using paired DeLong tests (Table S9; former Table S7)
+# Input: pooled out-of-fold ROC objects written by Model_builder_V2_nested_wt_refit.R:
+#   <out>.<group>.Indep_auc.rds   (one per predictor group, plus "All")
+# All groups are evaluated on identical outer folds (fixed seed, same analytic sample), so the
+# ROC objects are paired. Comparisons with the full model are nested; following Demler et al.
+# (Stat Med 2012) these are interpreted alongside the AUC difference (dAUC column).
+# Usage: Rscript Compare_AUC_DeLong.R <glad_out_prefix> <ukb_out_prefix> <output_file>
 library(pROC)
 
-compare_auc <- function(files) {
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) < 3) stop("Usage: Rscript Compare_AUC_DeLong.R <glad_out_prefix> <ukb_out_prefix> <output_file>")
+
+# Group labels as used in the predictors file (group column) of the development runs
+grp <- c(FH = "fh", PRS = "prs", CT = "ct", Demo = "demo", All = "All")
+
+compare_auc <- function(prefix) {
+  files <- setNames(paste0(prefix, ".", grp, ".Indep_auc.rds"), names(grp))
+  missing <- files[!file.exists(files)]
+  if (length(missing) > 0) stop("ROC objects not found:\n  ", paste(missing, collapse = "\n  "))
   roc_list <- lapply(files, readRDS)
   pairs <- combn(names(roc_list), 2, simplify = FALSE)
   res <- do.call(rbind, lapply(pairs, function(x) {
-    data.frame(model1 = x[1], model2 = x[2],
-               auc1 = as.numeric(auc(roc_list[[x[1]]])),
-               auc2 = as.numeric(auc(roc_list[[x[2]]])),
+    stopifnot(identical(roc_list[[x[1]]]$response, roc_list[[x[2]]]$response))  # paired on the same participants
+    a1 <- as.numeric(auc(roc_list[[x[1]]])); a2 <- as.numeric(auc(roc_list[[x[2]]]))
+    data.frame(model1 = x[1], model2 = x[2], auc1 = a1, auc2 = a2, dAUC = a2 - a1,
                p_value = roc.test(roc_list[[x[1]]], roc_list[[x[2]]],
                                   method = "delong", paired = TRUE)$p.value)
   }))
@@ -17,9 +31,7 @@ compare_auc <- function(files) {
   res
 }
 
-grp <- c(FH = "fh", PRS = "prs", CT = "ct", Demo = "demo", All = "all")
-glad <- compare_auc(setNames(paste0("Results/GLAD/mdd_all_pred.Indep_auc_", grp, ".rds"), names(grp)))
-ukb  <- compare_auc(setNames(paste0("Results/UKB/nested_ukb_mdd_allpred.Indep_auc_", grp, ".rds"), names(grp)))
-
+glad <- compare_auc(args[1])
+ukb  <- compare_auc(args[2])
 write.table(rbind(cbind(Cohort = "GLAD+", glad), cbind(Cohort = "UKB", ukb)),
-            "Results/TableS7_DeLong.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+            args[3], sep = "\t", row.names = FALSE, quote = FALSE)

@@ -1,5 +1,5 @@
 # MDD_prediction
-"**Combining family history, polygenic scores and childhood trauma to predict major depressive disorder**"
+"**Combining family history, polygenic scores, and childhood trauma to predict major depressive disorder**"
 
 Wang R, Davies H, Lee SY, Zvrskovec J, Hübel C, et al. Preprint: https://www.medrxiv.org/content/10.1101/2025.09.22.25336356v1
 
@@ -21,10 +21,17 @@ Using machine learning and statistical models, we evaluated how well these facto
 
 1) Whether someone has depression
 
-2) The severity of depressive episodes
-
-3) The future onset of depression
+2) The number of depressive episodes and age of onset (severity)
 
 Our results show that combining multiple risk factors improves prediction compared with using genetic information alone. In particular, family history and childhood trauma were consistently stronger predictors of depression than genetic risk scores. While genetic information contributes useful insights, traditional clinical risk factors remain highly informative.
 
 These findings highlight that integrating familial, environmental, and genetic information provides a more complete picture of depression risk. The work contributes to ongoing efforts to develop more accurate and clinically meaningful approaches for identifying individuals at elevated risk of depression.
+
+## Repository contents
+
+| Folder | Contents |
+|---|---|
+| `Scripts/Pheno/` | UK Biobank phenotype definitions (number of episodes, age of onset, family history from MHQ2, childhood trauma). Lifetime MDD in MHQ1/MHQ2: https://github.com/ColemanResearchGroup/MHQ2. GLAD+ phenotypes were derived with the same instruments from the COPING survey (Supplementary Methods). |
+| `Scripts/Models/` | Nested elastic net models, full-sample refits, external validation, evaluation metrics (AUC, liability R², calibration, PPV/NPV), DeLong comparisons and the XGBoost sensitivity analysis. `Scripts/Models/README.md` maps each script to the manuscript tables and figures. |
+
+Polygenic scores were computed with the GenoPred pipeline (https://github.com/opain/GenoPred; MegaPRS); settings are given in the Supplementary Methods.

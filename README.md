@@ -1,5 +1,5 @@
 # MDD_prediction
-"**Combined family history and polygenic score prediction of major depressive disorder**"
+"**Combining family history, polygenic scores and childhood trauma to predict major depressive disorder**"
 
 Wang R, Davies H, Lee SY, Zvrskovec J, Hübel C, et al. Preprint: https://www.medrxiv.org/content/10.1101/2025.09.22.25336356v1
 
